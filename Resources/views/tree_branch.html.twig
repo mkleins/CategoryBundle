@@ -1,0 +1,23 @@
+{% set rel = rel is defined ? rel : 'default' %}
+{% if node.children|length > 0 and rel!='root' %}
+    {% set rel = 'folder' %}
+{% elseif node.children|length == 0 %}
+    {% set rel = 'default' %}
+{% endif %}
+<li class="{{ rel == 'root' ? 'jstree-open' : 'jstree-closed' }} {{ node.children|length == 0 ? 'jstree-leaf' : '' }}" rel="{{ rel }}" id="node-{{ node.id is defined ? node.id : '' }}">
+    {% if 'root' == rel and not conf.editable_root %}
+        <a href="#" class="jstree-root">{{ node.name }}</a>
+    {% else %}
+        {% include conf.label_template %}
+    {% endif %}
+    {% if (rel == 'folder' or rel == 'root') %}
+    {% set rel = rel == 'root' ? 'folder' : 'default' %}
+    <ul>
+        {% if node.children|length > 0 %}
+            {% for child in node.children %}
+                {% include "CypressTreeBundle::tree_branch.html.twig" with { 'node': child, 'rel': rel} %}
+            {% endfor %}
+        {% endif %}
+    </ul>
+    {% endif %}
+</li>

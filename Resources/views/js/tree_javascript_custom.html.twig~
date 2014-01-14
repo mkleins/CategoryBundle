@@ -1,0 +1,175 @@
+<script>
+    $(document).ready(function() {
+        $('.cypress_tree').jstree({
+            "themes": {
+                "theme": "{{ conf.theme }}",
+                "url": "/bundles/cypresstree/jstree/themes/{{ conf.theme }}/style.css"
+            },
+            "types": {
+                "valid_children" : [ "root" ],
+                "types" : {
+                     "default": {
+                        "icon": {
+                            "image": "{{ asset(conf.node_icon) }}"
+                        },
+                        "valid_children": [ "default" ]
+                    },
+                    "folder": {
+                        "icon": {
+                            "image": "{{ asset(conf.folder_icon) }}"
+                        },
+                        "valid_children": [ "default", "folder" ]
+                    },
+                    "root": {
+                        "icon": {
+                            "image": "{{ asset(conf.root_icon) }}"
+                        },
+                        "valid_children" : [ "default", "folder" ],
+                        "start_drag" : false,
+                        "move_node" : false,
+                        "delete_node" : false,
+                        "remove" : false
+                    } 
+                }
+            },
+            "crrm": {
+                "move" : {
+                    "check_move" : function (m) {
+                        var p = this._get_parent(m.o);
+                        if (p.is_root) return false;
+                        if(!p) return false;
+                        p = p == -1 ? this.get_container() : p;
+                        if(p === m.np) return true;
+                        if(p[0] && m.np[0] && p[0] === m.np[0]) return true;
+                        return false;
+                    }
+                }
+            },
+            "dnd": {
+                "drop_target" : false,
+                "drag_target" : false
+            },
+            "plugins" : [
+                "html_data",
+                "themes",
+                "types",
+		"ui",
+                {% if conf.is_searchable %}
+                "search",
+                {% endif %}
+                {% if conf.contextual_menu %}
+                "contextmenu",
+                {% endif %}
+                {% if conf.isSortable %}
+                "crrm",
+                "dnd"
+                {% endif %}
+            ]
+            {% if conf.contextual_menu %}
+            ,"contextmenu": {"items": customMenu},
+            {% endif %}
+            {% if conf.is_searchable %}
+            "search": {
+                "case_insensitive" : true,
+                "ajax" : {
+                    "url" : Routing.generate('_cypress_tree_{{ conf.name }}_ajax_search'),
+                    "data" : function (str) {
+                        return {
+                            "search" : str
+                        };
+                    }
+                }
+             }
+            {% endif %}
+        }); 
+       {% if conf.contextual_menu %}
+       function customMenu(node) {
+           var items = {
+                createItem: { 
+                    label: "Créer",
+                    action: function (node) {   return {createItem: this.create(node) }; }
+                },
+                renameItem: { 
+                    label: "Renommer",
+                    action: function (node) {  return {renameItem: this.rename(node) }; }
+                },
+            };
+            return items;
+        }
+       $('.cypress_tree').bind("create.jstree", function (e, data) {
+            var callUrl = Routing.generate('_cypress_tree_{{ conf.name }}_ajax_add', {
+                parent: data.rslt.parent.attr("id").replace("node-",""),
+                position: data.rslt.position,
+                title:data.rslt.name,
+                type: data.rslt.obj.attr("rel")
+            });
+            $.post(
+                callUrl,
+                function (r) {
+                     if(r.status) {
+                        $(data.rslt.obj).attr("id", "node-" + r.id);
+                    }
+                     else {
+                         $.jstree.rollback(data.rlbk);
+                     }
+                 }
+            );
+         }),
+       $('.cypress_tree').bind("remove.jstree", function (e, data) {
+                var callUrl = Routing.generate('_cypress_tree_{{ conf.name }}_ajax_remove', {
+                    node: data.rslt.obj.attr("id").replace("node-","")
+                });
+                $.ajax({
+                     async : false,
+                     type: 'POST',
+                     url: callUrl,
+                     success : function (r) {
+                         if(!r=="ok") {
+                             data.inst.refresh();
+                         }
+                     }
+                });
+         }),
+        $('.cypress_tree').bind("rename.jstree", function (e, data) {
+             var callUrl = Routing.generate('_cypress_tree_{{ conf.name }}_ajax_rename', {
+                    node: data.rslt.obj.attr("id").replace("node-",""),
+                    title: data.rslt.new_name
+                });
+             $.post(
+                 callUrl,
+                 function (r) {
+                     if(!r.status) {
+                         $.jstree.rollback(data.rlbk);
+                     }
+                 }
+             );
+        }),
+        {% endif %}
+        $('.cypress_tree').bind('move_node.jstree', function(e, data) {
+            var move = $.jstree._focused()._get_move();
+            var moveAfter = 'after' == move.p ? '1' : '0';
+            var node = move.o;
+            var nodeId = node.attr('id').replace('node-', '');
+            var ref = move.r;
+            var refId = ref.attr('id').replace('node-', '');
+            var callUrl = Routing.generate('_cypress_tree_{{ conf.name }}_ajax_sort', {
+                node: nodeId,
+                ref: refId,
+                move: moveAfter
+            });
+            $.ajax({
+                context: this,
+                url: callUrl,
+                method: 'GET',
+                success: function(response) {
+                    if (response == 'ko') {
+                        $.jstree.rollback(data.rlbk);
+                    }
+                },
+                error: function() {
+                    $.jstree.rollback(data.rlbk);
+                }
+            });
+        });
+    });
+</script>

@@ -1,0 +1,219 @@
+<script>
+function stripVowelAccent(str)
+{
+ var rExps=[
+ {re:/[\xC0-\xC6]/g, ch:'A'},
+ {re:/[\xE0-\xE6]/g, ch:'a'},
+ {re:/[\xC8-\xCB]/g, ch:'E'},
+ {re:/[\xE8-\xEB]/g, ch:'e'},
+ {re:/[\xCC-\xCF]/g, ch:'I'},
+ {re:/[\xEC-\xEF]/g, ch:'i'},
+ {re:/[\xD2-\xD6]/g, ch:'O'},
+ {re:/[\xF2-\xF6]/g, ch:'o'},
+ {re:/[\xD9-\xDC]/g, ch:'U'},
+ {re:/[\xF9-\xFC]/g, ch:'u'},
+ {re:/[\xD1]/g, ch:'N'},
+ {re:/[\xF1]/g, ch:'n'} ];
+
+ for(var i=0, len=rExps.length; i<len; i++)
+  str=str.replace(rExps[i].re, rExps[i].ch);
+
+ return str;
+}
+ (function ($) {
+    $.expr[':'].jstree_startBy = function(a,i,m){
+        return stripVowelAccent((a.textContent || a.innerText || "").toLowerCase().trim()).indexOf(stripVowelAccent(m[3].toLowerCase()))==0;
+    };
+
+    $.expr[':'].jstree_contains = function(a,i,m){
+        return stripVowelAccent((a.textContent || a.innerText || "").toLowerCase()).indexOf(stripVowelAccent(m[3].toLowerCase()))>=0;
+    };
+})(jQuery);
+
+function startJstree_{{ name }}(search_type){
+    if(!search_type){
+        search_type =  "jstree_contains";
+    }
+    $('.cypress_tree_{{ name }}').jstree({
+    "themes": {
+        "theme": "{{ conf.theme }}",
+        "url": "/bundles/cypresstree/jstree/themes/{{ conf.theme }}/style.css"
+    },
+    "types": {
+        "valid_children" : [ "root" ],
+        "types" : {
+             "default": {
+                "icon": {
+                    "image": "{{ asset(conf.node_icon) }}"
+                },
+                "valid_children": [ "default" ]
+            },
+            "folder": {
+                "icon": {
+                    "image": "{{ asset(conf.folder_icon) }}"
+                },
+                "valid_children": [ "default", "folder" ]
+            },
+            "root": {
+                "icon": {
+                    "image": "{{ asset(conf.root_icon) }}"
+                },
+                "valid_children" : [ "default", "folder" ],
+                "start_drag" : false,
+                "move_node" : false,
+                "delete_node" : false,
+                "remove" : false
+            } 
+        }
+    },
+    "checkbox": {
+          two_state: true
+       },
+    "crrm": {
+        "move" : {
+            "check_move" : function (m) {
+                var p = this._get_parent(m.o);
+
+                if (p.is_root) return false;
+                else return true
+            }
+        }
+    },
+
+    "dnd": {
+        "drop_target" : false,
+        "drag_target" : false
+    },
+    "plugins" : [
+        "html_data",
+        "themes",
+        "types",
+    "ui",
+        {% if conf.is_searchable %}
+        "search",
+        "adv_search",
+        {% endif %}
+        {% if conf.contextual_menu %}
+        "contextmenu",
+        {% endif %}
+        {% if conf.is_selectable %}
+        "checkbox",
+        {% endif %}
+        {% if conf.is_sortable %}
+        "crrm",
+        "dnd",
+        {% endif %}
+        ],
+        {% if conf.contextual_menu %}
+        "contextmenu": {"items": customMenu},
+        {% endif %}
+        {% if conf.is_searchable %}
+        "search": {
+            "case_insensitive" : true,
+            "search_method" : search_type,
+         }
+        {% endif %}
+    }); 
+
+   {% if conf.contextual_menu %}
+   function customMenu(node) {
+       var items = {
+            createItem: { 
+                label: "Créer",
+                action: function (node) {   return {createItem: this.create(node) }; }
+            },
+            renameItem: { 
+                label: "Renommer",
+                action: function (node) {  return {renameItem: this.rename(node) }; }
+            },
+            deleteItem: { 
+                label: "del",
+                action: function (node) {  return {deleteItem: this.remove(node) }; }
+            },
+        };
+        return items;
+    }
+
+  
+   $('.cypress_tree_{{ name }}').bind("create.jstree", function (e, data) {
+        var callUrl = Routing.generate('_cypress_tree_{{ conf.name }}_ajax_add', {
+            parent: data.rslt.parent.attr("id").replace("node-",""),
+            position: data.rslt.position,
+            title:data.rslt.name,
+            type: data.rslt.obj.attr("rel")
+        });
+        $.post(
+            callUrl,
+            function (r) {
+                 if(r.status) {
+                    $(data.rslt.obj).attr("id", "node-" + r.id);
+                }
+                 else {
+                     $.jstree.rollback(data.rlbk);
+                 }
+             }
+        );
+     }),
+   $('.cypress_tree_{{ name }}').bind("remove.jstree", function (e, data) {
+            var callUrl = Routing.generate('_cypress_tree_{{ conf.name }}_ajax_remove', {
+                node: data.rslt.obj.attr("id").replace("node-","")
+            });
+            $.ajax({
+                 async : false,
+                 type: 'POST',
+                 url: callUrl,
+                 success : function (r) {
+                     if(!r=="ok") {
+                         data.inst.refresh();
+                     }
+                 }
+            });
+     }),
+    $('.cypress_tree_{{ name }}').bind("rename.jstree", function (e, data) {
+         var callUrl = Routing.generate('_cypress_tree_{{ conf.name }}_ajax_rename', {
+                node: data.rslt.obj.attr("id").replace("node-",""),
+                title: data.rslt.new_name
+            });
+         $.post(
+             callUrl,
+             function (r) {
+                 if(!r.status) {
+                     $.jstree.rollback(data.rlbk);
+                 }
+             }
+         );
+    }),
+    {% endif %}
+
+    $('.cypress_tree_{{ name }}').bind("loaded.jstree", function (event, data) {
+        $('.div_wait').hide();
+        $('.cypress_tree_{{ name }}').show();
+    });
+    $('.cypress_tree_{{ name }}').bind('move_node.jstree', function(e, data) {
+        var move = $.jstree._focused()._get_move();
+        var node = move.o;
+        var nodeId = node.attr('id').replace('node-', '');
+        var ref = move.r;
+        var refId = ref.attr('id').replace('node-', '');
+        var callUrl = Routing.generate('_cypress_tree_{{ conf.name }}_ajax_sort', {
+            node: nodeId,
+            ref: refId,
+            move: move.p
+        });
+        $.ajax({
+            context: this,
+            url: callUrl,
+            method: 'GET',
+            success: function(response) {
+                if (response == 'ko') {
+                    $.jstree.rollback(data.rlbk);
+                }
+            },
+            error: function() {
+                $.jstree.rollback(data.rlbk);
+            }
+        });
+    });
+}
+
+</script>

@@ -1,0 +1,10 @@
+services:
+    wd_tree.collection:
+        class: Wd\TreeBundle\Tree\TreeCollection
+        arguments: %cypress_tree.configs%
+    wd_tree.router:
+        class: Wd\TreeBundle\Routing\CypressTreeLoader
+        arguments:  [@cypress_tree.collection]
+    wd_tree.twig.extension:
+        class: Wd\TreeBundle\Twig\TreeBundleExtension
+        arguments:  [@twig, @wd_tree.collection]
